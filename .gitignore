@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+config.json
+signals.json
+weekly_brief.json
+*.log

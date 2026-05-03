@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: signal-dashboard
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    plan: free
+    envVars:
+      - key: SIGNAL_HOST
+        value: 0.0.0.0
+      - key: SIGNAL_DASHBOARD_PORT
+        value: 10000
+      - key: SIGNAL_DATA_DIR
+        value: /tmp/signal-dashboard
+      - key: ANTHROPIC_API_KEY
+        sync: false   # set this manually in Render dashboard
+      - key: NTFY_TOPIC
+        sync: false   # optional: your ntfy topic for push alerts
