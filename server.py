@@ -1536,7 +1536,7 @@ if __name__ == '__main__':
     port = int(CFG.get('port', 8765))
     log.info(f'Signal Dashboard → http://localhost:{port}')
     log.info(f'Sources: HN Algolia, Reddit × {len(SUBREDDITS)}, RSS × {len(RSS_FEEDS)}, GitHub, ArXiv')
-    host = os.environ.get('SIGNAL_HOST', '127.0.0.1')
+    host = os.environ.get('SIGNAL_HOST', '0.0.0.0')
     try:
         app.run(host=host, port=port, debug=False, use_reloader=False)
     finally:
