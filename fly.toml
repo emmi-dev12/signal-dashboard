@@ -9,7 +9,7 @@ primary_region = 'fra'
 [build]
 
 [processes]
-  app = "python server.py"
+  app = "/app/.venv/bin/python server.py"
 
 [http_service]
   internal_port = 8080
