@@ -1321,12 +1321,12 @@ function sigRow(item){
     <div class="sig-expand">
         <div class="expand-actions">
         <a href="${esc(item.url)}" target="_blank" rel="noopener"><button class="btn btn-open-link">↗ Open</button></a>
-        <button class="btn grad btn-claude-take">✦ Claude's Take</button>
+        <button class="btn btn-tldr">⚡ Get TL;DR</button>
         ${hasSummary?'<button class="btn btn-full-summary">📄 Full summary</button>':''}
       </div>
       ${hasSummary?`<div class="article-box" id="art-${esc(item.id)}">${esc(item.summary||'')}</div>`:''}
       <div class="claude-panel" id="cp-${esc(item.id)}">
-        <div class="claude-label">✦ Claude's Analysis</div>
+        <div class="claude-label">✦ Analysis</div>
         <div class="claude-body" id="cb-${esc(item.id)}"></div>
       </div>
     </div>
@@ -1340,8 +1340,8 @@ document.addEventListener('click', function(e){
   const openBtn=e.target.closest('.btn-open-link');
   if(openBtn) return; // let <a> handle it
 
-  const claudeBtn=e.target.closest('.btn-claude-take');
-  if(claudeBtn){e.stopPropagation();const row=claudeBtn.closest('.signal-row');if(row)claudeTake(row.dataset.id,claudeBtn);return;}
+  const tldrBtn=e.target.closest('.btn-tldr');
+  if(tldrBtn){e.stopPropagation();const row=tldrBtn.closest('.signal-row');if(row)openTldr(row.dataset.id);return;}
 
   const sumBtn=e.target.closest('.btn-full-summary');
   if(sumBtn){e.stopPropagation();const row=sumBtn.closest('.signal-row');if(row)toggleArt(row.dataset.id,sumBtn);return;}
@@ -1366,19 +1366,14 @@ function toggleArt(id,btn){
   const el=document.getElementById('art-'+id);if(!el)return;
   const s=el.classList.toggle('show');btn.textContent=s?'📄 Hide':'📄 Full summary';
 }
-async function claudeTake(id,btn){
+function openTldr(id){
   if(!id)return;
-  const p=document.getElementById('cp-'+id),b=document.getElementById('cb-'+id);
-  if(!p||!b)return;
-  btn.disabled=true;btn.innerHTML='<span class="spin"></span> Thinking…';
-  p.classList.add('show');b.innerHTML='<span class="spin"></span>';
-  try{
-    const r=await fetch('/api/deeper-take/'+encodeURIComponent(id));
-    const d=await r.json();
-    b.innerHTML=d.error?'⚠ '+esc(d.error):renderMd(d.analysis);
-    btn.innerHTML='✦ Regenerate';
-  }catch(e){b.innerHTML='Network error.';btn.innerHTML='✦ Retry';}
-  btn.disabled=false;
+  const all=(_data?.signals||[]).concat(_data?.chrono||[]);
+  const sig=all.find(s=>s.id===id);
+  if(!sig)return;
+  const body=(sig.summary_extracted||sig.summary||'').substring(0,800);
+  const prompt='Give me a TL;DR of this article:\n\nTitle: '+sig.title+'\nSource: '+sig.source+(body?'\n\n'+body:'')+(sig.url?'\n\nURL: '+sig.url:'');
+  window.open('https://chatgpt.com/?q='+encodeURIComponent(prompt),'_blank');
 }
 
 // ── Fetch Now button ────────────────────────────────────────────────────────────
