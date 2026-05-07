@@ -69,4 +69,4 @@ def get_stats() -> dict:
 
 
 # ASGI app — mounted at /mcp by server.py
-asgi_app = mcp.http_app(path='/mcp')
+asgi_app = mcp.http_app(path='/')
