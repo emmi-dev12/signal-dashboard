@@ -1626,6 +1626,18 @@ if __name__ == '__main__':
     log.info(f'Sources: HN Algolia, Reddit × {len(SUBREDDITS)}, RSS × {len(RSS_FEEDS)}, GitHub, ArXiv')
     host = os.environ.get('SIGNAL_HOST', '0.0.0.0')
     try:
-        app.run(host=host, port=port, debug=False, use_reloader=False)
+        import uvicorn
+        from a2wsgi import WSGIMiddleware
+        from mcp_app import asgi_app
+        from starlette.applications import Starlette
+        from starlette.routing import Mount
+
+        combined = Starlette(routes=[
+            Mount('/mcp', app=asgi_app),
+            Mount('/',    app=WSGIMiddleware(app)),
+        ])
+        log.info(f'Signal Dashboard → http://localhost:{port}')
+        log.info(f'MCP endpoint     → http://localhost:{port}/mcp')
+        uvicorn.run(combined, host=host, port=port, log_level='warning')
     finally:
         scheduler.shutdown()
