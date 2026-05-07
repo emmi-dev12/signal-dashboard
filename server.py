@@ -594,8 +594,9 @@ def check_and_alert():
         except Exception as e: log.warning(f'ntfy: {e}')
 
 def cleanup_old():
+    # Keep signals for 30 days so users can scroll back through history
     with _lock:
-        rm = [sid for sid,sig in signals.items() if _too_old(str(sig.get('published','')), 24)]
+        rm = [sid for sid,sig in signals.items() if _too_old(str(sig.get('published','')), 720)]
         for sid in rm: signals.pop(sid, None)
     if rm: log.info(f'Cleaned {len(rm)}')
 
@@ -681,9 +682,9 @@ def api_signals():
 
     thr = int(CFG.get('breaking_threshold', 8))
     return jsonify({
-        'signals':      clustered[:120],
-        'chrono':       chrono[:120],          # newest-first, all sources
-        'grouped':      {k: v[:30] for k, v in grouped.items()},
+        'signals':      clustered,
+        'chrono':       chrono,                # newest-first, all sources
+        'grouped':      grouped,
         'last_updated': datetime.utcnow().isoformat(),
         'total':        len(items),
         'breaking':     [i for i in clustered if i.get('score',0) >= thr][:8],
@@ -1270,7 +1271,7 @@ function renderBreaking(items){
 function renderAllPanes(data){
   const g=data.grouped||{};
   // Overview: chronological (newest first), all sources
-  const top=(data.chrono||data.signals).slice(0,60);
+  const top=(data.chrono||data.signals);
   const gh=(g['Open Source']||[]).filter(i=>i.source==='GitHub Trending');
   const rd=(data.chrono||data.signals).filter(i=>i.id&&i.id.startsWith('reddit'));
   document.getElementById('pane-top').innerHTML   =sigList(top);
@@ -1284,7 +1285,7 @@ function renderAllPanes(data){
 
 function sigList(items){
   if(!items.length)return`<div class="empty"><strong>No signals yet</strong><p>Sources poll every 10 minutes.</p></div>`;
-  return`<div class="signal-list">${items.slice(0,35).map(sigRow).join('')}</div>`;
+  return`<div class="signal-list">${items.map(sigRow).join('')}</div>`;
 }
 
 function sc(s){s=Math.round(s||1);return s>=9?'s10':s>=8?'s8':s>=7?'s7':s>=6?'s6':s>=5?'s5':'s4'}
