@@ -820,6 +820,93 @@ def weekly_brief():
 def api_config():
     return jsonify({k: v for k, v in CFG.items() if 'key' not in k.lower()})
 
+@app.route('/api/v1/agent')
+def api_agent():
+    """
+    Agent-friendly read-only endpoint.
+
+    Query params:
+      domain     - filter by domain label: 'AI & Tech' | 'Apple' | 'Geopolitics' | 'Open Source' | 'all' (default)
+      min_score  - int 1-10, minimum signal score (default 1)
+      limit      - max items to return (default 50, max 500)
+      sort       - 'score' (default) | 'time'
+      q          - keyword filter (case-insensitive substring match on title+summary)
+      since      - ISO 8601 datetime, only return signals published after this time
+    """
+    domain    = request.args.get('domain', 'all')
+    min_score = int(request.args.get('min_score', 1))
+    limit     = min(int(request.args.get('limit', 50)), 500)
+    sort      = request.args.get('sort', 'score')
+    q         = request.args.get('q', '').lower().strip()
+    since_str = request.args.get('since', '')
+
+    since_dt = None
+    if since_str:
+        try:
+            since_dt = datetime.fromisoformat(since_str.replace('Z', '+00:00'))
+        except ValueError:
+            return jsonify({'error': f'Invalid since format. Use ISO 8601, e.g. 2025-01-01T00:00:00Z'}), 400
+
+    items = _items_sorted() if sort == 'score' else _items_by_time()
+
+    if domain != 'all':
+        items = [i for i in items if i.get('domain_label', '') == domain]
+    if min_score > 1:
+        items = [i for i in items if i.get('score', 0) >= min_score]
+    if q:
+        items = [i for i in items if q in i.get('title', '').lower() or q in i.get('summary_extracted', '').lower()]
+    if since_dt:
+        def _after(sig):
+            pub = str(sig.get('published', ''))
+            try:
+                dt = datetime.fromisoformat(pub.replace('Z', '+00:00'))
+                if dt.tzinfo is None:
+                    from datetime import timezone
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt > since_dt
+            except Exception:
+                return False
+        items = [i for i in items if _after(i)]
+
+    items = items[:limit]
+
+    def _fmt(sig):
+        return {
+            'id':          sig.get('id', ''),
+            'title':       sig.get('title', ''),
+            'url':         sig.get('url', ''),
+            'source':      sig.get('source', ''),
+            'domain':      sig.get('domain_label', ''),
+            'score':       sig.get('score', 0),
+            'published':   sig.get('published', ''),
+            'summary':     sig.get('summary_extracted', ''),
+            'hn_score':    sig.get('hn_score'),
+            'reddit_score':sig.get('reddit_score'),
+            'stars_today': sig.get('stars_today'),
+            'cluster_id':  sig.get('cluster_id'),
+        }
+
+    return jsonify({
+        '_schema': {
+            'endpoint':    '/api/v1/agent',
+            'params':      ['domain', 'min_score', 'limit', 'sort', 'q', 'since'],
+            'domain_values': ['all', 'AI & Tech', 'Apple', 'Geopolitics', 'Open Source'],
+            'sort_values': ['score', 'time'],
+            'score_range': '1-10 (10=most important)',
+        },
+        'meta': {
+            'total_in_store': len(signals),
+            'returned':       len(items),
+            'sort':           sort,
+            'filters':        {k: v for k, v in {
+                'domain': domain, 'min_score': min_score,
+                'q': q or None, 'since': since_str or None,
+            }.items() if v not in (None, 'all', 1, '')},
+            'as_of':          datetime.utcnow().isoformat() + 'Z',
+        },
+        'signals': [_fmt(i) for i in items],
+    })
+
 # ── Dashboard HTML ─────────────────────────────────────────────────────────────
 
 DASHBOARD_HTML = r"""<!DOCTYPE html>
