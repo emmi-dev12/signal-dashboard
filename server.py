@@ -1048,6 +1048,13 @@ a{color:inherit;text-decoration:none}button{font-family:'Inter',sans-serif}
 .tab.active{color:var(--text);border-bottom-color:var(--ga)}
 .tab-pane{display:none}
 .tab-pane.active{display:block}
+/* ── Pin ── */
+.pin-btn{background:none;border:none;cursor:pointer;padding:0 3px;font-size:13px;
+  opacity:.3;transition:opacity .15s;line-height:1;flex-shrink:0;margin-left:2px}
+.pin-btn:hover,.pin-btn.pinned{opacity:1}
+.pin-count{display:none;background:var(--ga);color:#000;border-radius:10px;
+  font-size:9px;font-weight:700;padding:1px 5px;margin-left:3px;vertical-align:middle}
+.pin-count.show{display:inline}
 
 /* ── Section head ── */
 .sec-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;margin-top:4px}
@@ -1238,6 +1245,7 @@ a{color:inherit;text-decoration:none}button{font-family:'Inter',sans-serif}
     <button class="tab"        data-tab="oss"    onclick="switchTab('oss',this)">Open Source</button>
     <button class="tab"        data-tab="github" onclick="switchTab('github',this)">GitHub</button>
     <button class="tab"        data-tab="reddit" onclick="switchTab('reddit',this)">Reddit</button>
+    <button class="tab"        data-tab="pinned" onclick="switchTab('pinned',this)">📌 Pinned<span class="pin-count" id="pin-count"></span></button>
     <button class="tab"        data-tab="brief"  onclick="switchTab('brief',this)">Brief</button>
   </div>
 
@@ -1248,6 +1256,7 @@ a{color:inherit;text-decoration:none}button{font-family:'Inter',sans-serif}
   <div id="pane-oss"    class="tab-pane"></div>
   <div id="pane-github" class="tab-pane"></div>
   <div id="pane-reddit" class="tab-pane"></div>
+  <div id="pane-pinned" class="tab-pane"></div>
   <div id="pane-brief"  class="tab-pane"></div>
 </div>
 
@@ -1274,6 +1283,38 @@ function switchTab(name,el){
   el.classList.add('active');
   document.getElementById('pane-'+name).classList.add('active');
   if(name==='brief')renderBriefPane();
+  if(name==='pinned')renderPinnedPane();
+}
+
+// ── Pin ────────────────────────────────────────────────────────────────────────
+function pinnedIds(){return new Set(JSON.parse(localStorage.getItem('pinnedSignals')||'[]'));}
+function togglePin(id){
+  if(!id)return;
+  const s=pinnedIds();
+  if(s.has(id))s.delete(id);else s.add(id);
+  localStorage.setItem('pinnedSignals',JSON.stringify([...s]));
+  // Update all pin buttons for this id across panes
+  document.querySelectorAll(`.pin-btn[data-id="${CSS.escape(id)}"]`).forEach(b=>{
+    b.classList.toggle('pinned',s.has(id));
+    b.textContent=s.has(id)?'📌':'📍';
+    b.title=s.has(id)?'Unpin':'Pin';
+  });
+  renderPinnedPane();
+}
+function renderPinnedPane(){
+  const ids=pinnedIds();
+  const badge=document.getElementById('pin-count');
+  if(badge){badge.textContent=ids.size>0?ids.size:'';badge.classList.toggle('show',ids.size>0);}
+  const pane=document.getElementById('pane-pinned');
+  if(!pane)return;
+  if(ids.size===0){
+    pane.innerHTML='<div class="empty"><strong>No pinned signals</strong><p>Click 📍 next to any signal title to pin it here.</p></div>';
+    return;
+  }
+  const all=(_data?.chrono||_data?.signals||[]);
+  const seen=new Set();
+  const pinned=[...ids].map(id=>all.find(i=>i.id===id)).filter(i=>{if(!i||seen.has(i.id))return false;seen.add(i.id);return true;});
+  pane.innerHTML=pinned.length?sigList(pinned):'<div class="empty"><strong>Pinned signals not in current feed</strong><p>They may have expired from the feed. Re-fetch to reload.</p></div>';
 }
 
 // ── Ticker ─────────────────────────────────────────────────────────────────────
@@ -1368,6 +1409,7 @@ function renderAllPanes(data){
   document.getElementById('pane-oss').innerHTML   =sigList(g['Open Source']||[]);
   document.getElementById('pane-github').innerHTML=sigList(gh);
   document.getElementById('pane-reddit').innerHTML=sigList(rd);
+  renderPinnedPane();
 }
 
 function sigList(items){
@@ -1393,12 +1435,12 @@ function sigRow(item){
   const clust=item.cluster_count>1?`<span class="cluster-badge">⬡ ${item.cluster_count} sources</span>`:'';
   const hasSummary=!!(item.summary_extracted||item.summary);
   const sumText=(item.summary_extracted||item.summary||'').substring(0,200);
-  // Encode id safely for data attributes (no JS injection risk)
+  const pinned=pinnedIds().has(item.id);
   return`
 <div class="signal-row" id="row-${esc(item.id)}" data-id="${esc(item.id)}" data-url="${esc(item.url)}">
   <div class="sig-score"><div class="score-badge ${sc(s)}">${s}</div></div>
   <div class="sig-body">
-    <div class="sig-title">${esc(item.title)}</div>
+    <div class="sig-title">${esc(item.title)}<button class="pin-btn${pinned?' pinned':''}" data-id="${esc(item.id)}" title="${pinned?'Unpin':'Pin'}">${pinned?'📌':'📍'}</button></div>
     ${sumText?`<div class="sig-summary">${esc(sumText)}</div>`:''}
     <div class="sig-meta">
       <span class="sig-source">${esc(item.source)}</span>
@@ -1427,6 +1469,9 @@ document.addEventListener('click', function(e){
   // Don't toggle when clicking a link or button inside the row
   const openBtn=e.target.closest('.btn-open-link');
   if(openBtn) return; // let <a> handle it
+
+  const pinBtn=e.target.closest('.pin-btn');
+  if(pinBtn){e.stopPropagation();togglePin(pinBtn.dataset.id);return;}
 
   const tldrBtn=e.target.closest('.btn-tldr');
   if(tldrBtn){e.stopPropagation();const row=tldrBtn.closest('.signal-row');if(row)openTldr(row.dataset.id);return;}
